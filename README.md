@@ -33,8 +33,8 @@ This project retrieves and displays your starred repositories on GitHub using OA
 - Create a .env-named file in the root folder of the project
 - Open the .env file and add the following lines:
 ```
-    ID=Your_GitHub_ID_here
-    SECRET=Your_GitHub_secret_here
+ID=Your_GitHub_ID_here
+SECRET=Your_GitHub_secret_here
 ```
 - Replace "Your_GitHub_ID_here" and "Your_GitHub_secret_here" with your GitHub OAuth application's Client ID and Client secret
 
