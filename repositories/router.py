@@ -46,6 +46,42 @@ async def login(response: Response):
         return {"Error": str(e)}
 
 
+# Parse the essential information of the list passed as a parameter. 
+# Returns a parsed list of dictionaries.
+def parse_starred_repos(starred_repos: list) -> list:
+    # Initialize a list to store the essential information for each
+    # repository:
+    essential_repos_info = []
+
+    # Iterate over the starred repositories:
+    for repo in starred_repos:
+        # Skip private repositories:
+        if not repo.get("private"):
+
+            # Extract the essential repository information:
+            repo_dict = {
+                "name": repo.get("name"),
+                "description": repo.get("description"),
+                "URL": repo.get("html_url"),
+                "topics": repo.get("topics")
+            }
+
+            # If the repository has a license, insert it into the
+            # repo_dict dictionary before the topics-key.
+            if repo.get("license") is not None:
+                license_index = list(repo_dict.keys()).index("topics")
+                repo_items = list(repo_dict.items())
+                repo_items.insert(
+                    license_index, ("license", repo.get("license").get("name"))
+                )
+                repo_dict = dict(repo_items)
+
+            # Add the repository's essential information to the list:
+            essential_repos_info.append(repo_dict)
+
+    return essential_repos_info
+
+
 # The endpoint is accessed after login and displays the user's starred
 # repositories. The usage of the httpx library and FastAPI's Response
 # was inspired by Hiltunen's 2023 example project at
@@ -58,7 +94,7 @@ async def show_starred_repositories(code: str, response: Response):
         "client_secret": client_secret,
         "code": code
     }
-    print(code)
+
     # Set the Accept header to request JSON format from GitHub's API:
     headers = {"Accept": "application/json"}
 
@@ -113,39 +149,10 @@ async def show_starred_repositories(code: str, response: Response):
 
         # Convert the response to json:
         starred_repos_info = starred_repos_res.json()
-        # Initialize a list to store the essential information for each
-        # repository:
-        essential_repos_info = []
-
-        # Iterate over the starred repositories:
-        for repo in starred_repos_info:
-            # Skip private repositories:
-            if not repo.get("private"):
-
-                # Extract the essential repository information:
-                repo_dict = {
-                    "name": repo.get("name"),
-                    "description": repo.get("description"),
-                    "URL": repo.get("html_url"),
-                    "topics": repo.get("topics")
-                }
-
-                # If the repository has a license, insert it into the
-                # repo_dict dictionary before the topics-key.
-                if repo.get("license") is not None:
-                    license_index = list(repo_dict.keys()).index("topics")
-                    repo_items = list(repo_dict.items())
-                    repo_items.insert(
-                        license_index, ("license", repo.get("license").get("name"))
-                    )
-                    repo_dict = dict(repo_items)
-
-                # Add the repository's essential information to the list:
-                essential_repos_info.append(repo_dict)
 
         return {
             # Return the count of starred repositories (private or not) and
             # the essential information of the public repositories
             "starred_repositories_count": len(starred_repos_info),
-            "starred_repositories": essential_repos_info
+            "starred_repositories": parse_starred_repos(starred_repos_info)
         }

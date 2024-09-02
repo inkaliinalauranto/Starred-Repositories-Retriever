@@ -23,7 +23,7 @@ This project retrieves and displays your starred repositories on GitHub using OA
 - Navigate to the root folder of the project in your editor's terminal and create a virtual environment: 
 > python -m venv .venv
 - Activate the virtual environment (on Windows):
-> .\.venv\Scripts\activate
+> .venv\Scripts\activate
 
 ## Install required libraries
 - With the virtual environment activated, install the required libraries:
@@ -36,7 +36,6 @@ This project retrieves and displays your starred repositories on GitHub using OA
     ID=Your_GitHub_ID_here
     SECRET=Your_GitHub_secret_here
 ```
-
 - Replace "Your_GitHub_ID_here" and "Your_GitHub_secret_here" with your GitHub OAuth application's Client ID and Client secret
 
 ## Start the web server:
