@@ -24,7 +24,6 @@ if not client_id or not client_secret:
         ".env file."
     )
 
-
 '''The logic of the GET routers was inspired by Estes' 2023 tutorial video: 
 https://www.youtube.com/watch?v=Pm938UxLEwQ.'''
 
@@ -42,6 +41,75 @@ async def login():
         # If any error occurs during the redirect process, the HTTPException
         # is raised with the Internal Server Error status code:
         raise HTTPException(status_code=500, detail=f"Error: {e}")
+
+
+async def fetch_access_token(code: str, headers: dict) -> str:
+    # Use the httpx to create an asynchronous HTTP client:
+    async with httpx.AsyncClient() as client:
+        # Define query parameters for the GitHub OAuth access token request:
+        params = {
+            "client_id": client_id,
+            "client_secret": client_secret,
+            "code": code
+        }
+
+        # Request the access token from GitHub's OAuth endpoint:
+        access_token_res = await client.post(
+            url="https://github.com/login/oauth/access_token",
+            params=params,
+            headers=headers
+        )
+
+        # If the request fails, an error response with the status code and
+        # the message are raised:
+        if access_token_res.status_code != 200:
+            raise HTTPException(
+                status_code=access_token_res.status_code,
+                detail="Access token retrieving failed"
+            )
+
+        # Otherwise, return the extracted access token from the response:
+        return access_token_res.json().get("access_token")
+
+
+async def fetch_user(headers: dict) -> str:
+    # Use the httpx to create an asynchronous HTTP client:
+    async with httpx.AsyncClient() as client:
+        # Retrieve the user's information using the passed headers which
+        # include the access token:
+        user_info_res = await client.get(
+            url="https://api.github.com/user",
+            headers=headers
+        )
+        # If the request fails, raise an error response with the status code:
+        if user_info_res.status_code != 200:
+            raise HTTPException(
+                status_code=user_info_res.status_code,
+                detail="Failed to retrieve user information."
+            )
+
+        # Otherwise, return the username (key: login) extracted from the JSON
+        # response:
+        return user_info_res.json().get("login")
+
+
+async def fetch_starred_repos(user: str, headers: dict) -> list:
+    # Use the httpx to create an asynchronous HTTP client:
+    async with httpx.AsyncClient() as client:
+        # Retrieve the user's starred repositories:
+        starred_repos_res = await client.get(
+            url=f"https://api.github.com/users/{user}/starred",
+            headers=headers
+        )
+        # If the request fails, raise an error response with the status code:
+        if starred_repos_res.status_code != 200:
+            raise HTTPException(
+                status_code=starred_repos_res.status_code,
+                detail="Failed to retrieve starred repositories information."
+            )
+
+        # Otherwise, return the response converted to JSON:
+        return starred_repos_res.json()
 
 
 # Parse the essential information of the list passed as a parameter. 
@@ -98,68 +166,23 @@ async def show_starred_repositories(code: str):
     # Set the Accept header to request JSON format from GitHub's API:
     headers = {"Accept": "application/json"}
 
-    # Use the httpx to create an asynchronous HTTP client:
-    async with httpx.AsyncClient() as client:
-        # Request the access token from GitHub's OAuth endpoint:
-        access_token_res = await client.post(
-            url="https://github.com/login/oauth/access_token",
-            params=params,
-            headers=headers
+    access_token = await fetch_access_token(code, headers)
+
+    if not access_token:
+        # Raise an error if the access token is missing:
+        raise HTTPException(
+            status_code=400, detail="Access token missing."
         )
-        # If the request fails, an error response with the status code and
-        # the message are raised:
-        if access_token_res.status_code != 200:
-            raise HTTPException(
-                status_code=access_token_res.status_code,
-                detail="Access token retrieving failed"
-            )
 
-        # Otherwise, extract the access token from the response:
-        access_token = access_token_res.json().get("access_token")
-        if not access_token:
-            # Raise an error if the access token is missing:
-            raise HTTPException(
-                status_code=400, detail="Access token missing."
-            )
+    # Add the access token to the header:
+    headers.update({"Authorization": f"Bearer {access_token}"})
 
-        # Add the access token to the header:
-        headers.update({"Authorization": f"Bearer {access_token}"})
+    user = await fetch_user(headers)
+    starred_repos_info = await fetch_starred_repos(user, headers)
 
-        # Retrieve the user's information using the header with the access
-        # token:
-        user_info_res = await client.get(
-            url="https://api.github.com/user",
-            headers=headers
-        )
-        # If the request fails, raise an error response with the status code:
-        if user_info_res.status_code != 200:
-            raise HTTPException(
-                status_code=user_info_res.status_code,
-                detail="Failed to retrieve user information."
-            )
-
-        # Convert the response to json and extract the user's username
-        # (key: login):
-        user = user_info_res.json().get("login")
-
-        # Retrieve the user's starred repositories:
-        starred_repos_res = await client.get(
-            url=f"https://api.github.com/users/{user}/starred",
-            headers=headers
-        )
-        # If the request fails, raise an error response with the status code:
-        if starred_repos_res.status_code != 200:
-            raise HTTPException(
-                status_code=starred_repos_res.status_code,
-                detail="Failed to retrieve starred repositories information."
-            )
-
-        # Convert the response to json:
-        starred_repos_info = starred_repos_res.json()
-
-        return {
-            # Return the count of starred repositories (private or not) and
-            # the essential information of the public repositories
-            "starred_repositories_count": len(starred_repos_info),
-            "starred_repositories": parse_starred_repos(starred_repos_info)
-        }
+    return {
+        # Return the count of starred repositories (private or not) and
+        # the essential information of the public repositories
+        "starred_repositories_count": len(starred_repos_info),
+        "starred_repositories": parse_starred_repos(starred_repos_info)
+    }
