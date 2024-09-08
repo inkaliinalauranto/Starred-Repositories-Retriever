@@ -156,16 +156,8 @@ def parse_starred_repos(starred_repos: list) -> list:
 # https://fastapi.tiangolo.com/tutorial/security/oauth2-jwt/:
 @repositories_router.get('/essential-starred-repositories-information')
 async def show_starred_repositories(code: str):
-    # Define query parameters for the GitHub OAuth access token request:
-    params = {
-        "client_id": client_id,
-        "client_secret": client_secret,
-        "code": code
-    }
-
     # Set the Accept header to request JSON format from GitHub's API:
     headers = {"Accept": "application/json"}
-
     access_token = await fetch_access_token(code, headers)
 
     if not access_token:
