@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Response
+from fastapi import APIRouter, HTTPException
 from dotenv import load_dotenv
 import os
 from fastapi.responses import RedirectResponse
@@ -30,20 +30,18 @@ https://www.youtube.com/watch?v=Pm938UxLEwQ.'''
 
 
 @repositories_router.get('/login')
-async def login(response: Response):
+async def login():
     try:
         # The /login endpoint redirects the client to GitHub's OAuth
-        # authorization page where the use can authorize the application to
+        # authorization page where the user can authorize the application to
         # access their data:
         return RedirectResponse(
             f"https://github.com/login/oauth/authorize?client_id={client_id}"
         )
     except Exception as e:
-        # If any error occurs during the redirect process, the response status
-        # is set to Internal Server Error and the error is returned as a
-        # response:
-        response.status_code = 500
-        return {"Error": str(e)}
+        # If any error occurs during the redirect process, the HTTPException
+        # is raised with the Internal Server Error status code:
+        raise HTTPException(status_code=500, detail=f"Error: {e}")
 
 
 # Parse the essential information of the list passed as a parameter. 
@@ -67,7 +65,7 @@ def parse_starred_repos(starred_repos: list) -> list:
             }
 
             # If the repository has a license, insert it into the
-            # repo_dict dictionary before the topics-key.
+            # repo_dict dictionary before the topics key.
             if repo.get("license") is not None:
                 license_index = list(repo_dict.keys()).index("topics")
                 repo_items = list(repo_dict.items())
@@ -83,11 +81,13 @@ def parse_starred_repos(starred_repos: list) -> list:
 
 
 # The endpoint is accessed after login and displays the user's starred
-# repositories. The usage of the httpx library and FastAPI's Response
-# was inspired by Hiltunen's 2023 example project at
-# https://peke.plab.fi/matias.hiltunen/todo-with-ai-images-example:
+# repositories. The usage of the httpx library is inspired by Hiltunen's
+# 2023 example projects at
+# https://peke.plab.fi/matias.hiltunen/todo-with-ai-images-example. The
+# The use of HTTPException follows the FastAPI documentation example at
+# https://fastapi.tiangolo.com/tutorial/security/oauth2-jwt/:
 @repositories_router.get('/essential-starred-repositories-information')
-async def show_starred_repositories(code: str, response: Response):
+async def show_starred_repositories(code: str):
     # Define query parameters for the GitHub OAuth access token request:
     params = {
         "client_id": client_id,
@@ -107,17 +107,20 @@ async def show_starred_repositories(code: str, response: Response):
             headers=headers
         )
         # If the request fails, an error response with the status code and
-        # a message are returned:
+        # the message are raised:
         if access_token_res.status_code != 200:
-            response.status_code = access_token_res.status_code
-            return {"Error": "Access token retrieving failed."}
+            raise HTTPException(
+                status_code=access_token_res.status_code,
+                detail="Access token retrieving failed"
+            )
 
         # Otherwise, extract the access token from the response:
         access_token = access_token_res.json().get("access_token")
         if not access_token:
-            # Return an error if the access token is missing:
-            response.status_code = 400
-            return {"Error": "Access token missing."}
+            # Raise an error if the access token is missing:
+            raise HTTPException(
+                status_code=400, detail="Access token missing."
+            )
 
         # Add the access token to the header:
         headers.update({"Authorization": f"Bearer {access_token}"})
@@ -128,10 +131,12 @@ async def show_starred_repositories(code: str, response: Response):
             url="https://api.github.com/user",
             headers=headers
         )
-        # If the request fails, return an error response with the status code:
+        # If the request fails, raise an error response with the status code:
         if user_info_res.status_code != 200:
-            response.status_code = user_info_res.status_code
-            return {"Error": "Failed to retrieve user information."}
+            raise HTTPException(
+                status_code=user_info_res.status_code,
+                detail="Failed to retrieve user information."
+            )
 
         # Convert the response to json and extract the user's username
         # (key: login):
@@ -142,10 +147,12 @@ async def show_starred_repositories(code: str, response: Response):
             url=f"https://api.github.com/users/{user}/starred",
             headers=headers
         )
-        # If the request fails, return an error response with the status code:
+        # If the request fails, raise an error response with the status code:
         if starred_repos_res.status_code != 200:
-            response.status_code = starred_repos_res.status_code
-            return {"Error": "Failed to retrieve starred repositories information."}
+            raise HTTPException(
+                status_code=starred_repos_res.status_code,
+                detail="Failed to retrieve starred repositories information."
+            )
 
         # Convert the response to json:
         starred_repos_info = starred_repos_res.json()
